@@ -1,0 +1,67 @@
+version: "3.3"
+services:
+    # We do not need a container for building react unless we want to
+    # simply use the multi-stage build in nginx
+    # ensure the context is correct
+    react-dev:
+        container_name: ${APPLICATION_NAME}-react
+        build:
+            context: ./app
+            dockerfile: Dockerfile
+        volumes:
+            - ./app:/app
+        ports:
+            - "8080:80"
+        environment:
+            - NODE_ENV=production
+            - CHOKIDAR_USEPOLLING=true
+        stdin_open: true
+    php-fpm:
+        container_name: ${APPLICATION_NAME}-php-fpm
+        build:
+            context: ./phpdocker
+            dockerfile: Dockerfile
+        ports:
+            - 9000:9000
+              #stdin_open: true
+        volumes:
+            - ./api:/api
+            - ./classes:/classes
+
+    nginx:
+        container_name: ${APPLICATION_NAME}-nginx
+        build:
+            context: .
+            dockerfile: ./nginx/Dockerfile
+        ports:
+            - "8090:80"
+        depends_on:
+            #- react-dev
+            - php-fpm
+        environment:
+            - CHOKIDAR_USEPOLLING=true
+        volumes:
+            #- ./build:/usr/share/nginx/html
+              #- ./api:/api
+              #- ./classes:/classes
+            - ./nginx/conf.d/default.conf:/etc/nginx/conf.d/app.conf
+            - ./nginx/conf.d/php.conf:/etc/nginx/conf.d/api.conf
+        links:
+            #        - react-dev
+            - php-fpm
+        extra_hosts:
+            - "app.local:127.0.1.2"
+            - "api.local:127.0.1.3"
+    mysql:
+        container_name: ${APPLICATION_NAME}-mysql
+        build: mysql
+        restart: on-failure
+        volumes:
+            - .:/var/data/mysql
+        environment:
+            - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+            - MYSQL_DATABASE=${MYSQL_DATABASE}
+            - MYSQL_USER=${MYSQL_USER}
+            - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+        ports:
+            - "9092:3306"
